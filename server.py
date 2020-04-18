@@ -1,5 +1,5 @@
 import socket
-
+import sys
 
 class Server(object):
     """
@@ -54,6 +54,7 @@ class Server(object):
         self.port = port
 
         self.room = 0
+        self.last_visited_room = 0
 
     def connect(self):
         self.socket = socket.socket(
@@ -61,11 +62,14 @@ class Server(object):
             socket.SOCK_STREAM,
             socket.IPPROTO_TCP)
 
+        self.socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+
         address = ('127.0.0.1', self.port)
         self.socket.bind(address)
         self.socket.listen(1)
 
         self.client_connection, address = self.socket.accept()
+
 
     def room_description(self, room_number):
         """
@@ -78,10 +82,14 @@ class Server(object):
         :param room_number: int
         :return: str
         """
+        if self.last_visited_room == room_number:
+            return "This room has " + { 0: 'brown walpaper!', 1: 'mauve wallpaper', 2: 'green floor', 3: 'white wallpaper' }[room_number] + ".You are already in this room.  "
+
+        self.last_visited_room = room_number
+        return "This room has " + { 0: 'brown walpaper!', 1: 'mauve wallpaper', 2: 'green floor', 3: 'white wallpaper' }[room_number]
 
         # TODO: YOUR CODE HERE
 
-        pass
 
     def greet(self):
         """
@@ -105,8 +113,13 @@ class Server(object):
         This is a BLOCKING call. It should not return until there is some input from
         the client to receive.
          
-        :return: None 
+        :return: None
         """
+        received = b''
+        while not b'\n' in received:
+            received += self.client_connection.recv(16)
+
+        self.input_buffer = received.decode('utf8').strip()
 
         # TODO: YOUR CODE HERE
 
@@ -128,11 +141,12 @@ class Server(object):
         
         Puts the room description (see `self.room_description`) for the new room
         into "self.output_buffer".
-        
+
         :param argument: str
         :return: None
         """
 
+        self.output_buffer = self.room_description({"north": 3, "south": 0, "east": 1, "west": 2}[argument])
         # TODO: YOUR CODE HERE
 
         pass
@@ -151,6 +165,8 @@ class Server(object):
         :return: None
         """
 
+        self.output_buffer = 'You Say, "{}"'.format(argument)
+
         # TODO: YOUR CODE HERE
 
         pass
@@ -166,6 +182,8 @@ class Server(object):
         :param argument: str
         :return: None
         """
+        self.done = True
+        self.output_buffer = "Goodbye!"
 
         # TODO: YOUR CODE HERE
 
@@ -179,9 +197,18 @@ class Server(object):
         For example, if the input buffer contains "say Is anybody here?" then `route`
         should invoke `self.say("Is anybody here?")`. If the input buffer contains
         "move north", then `route` should invoke `self.move("north")`.
-        
+
+
         :return: None
         """
+        if self.input_buffer.startswith("say"):
+            self.say(self.input_buffer.split("say")[1].strip())
+        elif self.input_buffer.startswith("move"):
+            self.move(self.input_buffer.split("move")[1].strip())
+        elif self.input_buffer.startswith('quit'):
+            self.quit('quit')
+        else:
+            self.output_buffer = 'Unknown command. Try again'
 
         # TODO: YOUR CODE HERE
 
@@ -196,6 +223,8 @@ class Server(object):
         
         :return: None 
         """
+
+        self.client_connection.sendall(b'Ok! ' + self.output_buffer.encode("utf8") + b"\n")
 
         # TODO: YOUR CODE HERE
 
